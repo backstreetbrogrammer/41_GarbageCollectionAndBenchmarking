@@ -12,9 +12,9 @@ Tools used:
 ## Table of contents
 
 1. [Garbage Collection](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-01-garbage-collection)
-    - [Introduction to Java Garbage Collector](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-01-garbage-collection)
-    - [Generational Heaps](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-01-garbage-collection)
-    - [Types of Garbage Collectors](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-01-garbage-collection)
+    - [Introduction to Java Garbage Collector](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#introduction-to-java-garbage-collector)
+    - [Generational Heaps](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#generational-heaps)
+    - [Types of Garbage Collectors](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#types-of-garbage-collectors)
 2. Heap monitoring and analysis
 3. Using profiler for performance analysis
 4. Performance benchmarking
@@ -99,7 +99,7 @@ A few other terms related to how the GC is implemented are essential when we wan
     - **Stop-The-World**: the application is stopped while the GC cycle is running.
     - **Concurrent**: the GC is running **next to** the application and has no impact on the application execution.
 
-**Live Set and Allocation Rate**
+**_Live Set and Allocation Rate_**
 
 As described in the different stages, the **live set**, which contains all the objects still in use, is an essential
 factor in the behavior of the GC.
