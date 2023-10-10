@@ -16,10 +16,10 @@ Tools used:
     - [Generational Heaps](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#generational-heaps)
     - [Types of Garbage Collectors](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#types-of-garbage-collectors)
         - [Serial GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
-        - [Parallel/Throughput GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
-        - [Concurrent Mark Sweep (CMS) GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
-        - [G1 (Garbage First)](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
-        - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
+        - [Parallel/Throughput GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#parallelthroughput-gc)
+        - [Concurrent Mark Sweep (CMS) GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#concurrent-mark-sweep-cms-gc)
+        - [G1 (Garbage First)](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#g1-garbage-first)
+        - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
 2. Heap monitoring and analysis
 3. Using profiler for performance analysis
 4. Performance benchmarking
