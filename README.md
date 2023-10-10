@@ -15,6 +15,11 @@ Tools used:
     - [Introduction to Java Garbage Collector](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#introduction-to-java-garbage-collector)
     - [Generational Heaps](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#generational-heaps)
     - [Types of Garbage Collectors](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#types-of-garbage-collectors)
+        - [Serial GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
+        - [Parallel/Throughput GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
+        - [Concurrent Mark Sweep (CMS) GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
+        - [G1 (Garbage First)](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
+        - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#serial-gc)
 2. Heap monitoring and analysis
 3. Using profiler for performance analysis
 4. Performance benchmarking
@@ -168,4 +173,149 @@ lifetime, so the GC can focus on a subset of the heap that can quickly be handle
 
 Just like Java-the-language has evolved, the runtime and tools have evolved a lot, and different GCs have been part of
 the JRE.
+
+| Name                                              | isParallel | isConcurrent | isGenerational                  | JVM Option                                                                                                                                                | Java version                                     |
+|---------------------------------------------------|------------|--------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
+| Serial                                            | No         | No           | Yes                             | -XX:+UseSerialGC                                                                                                                                          |                                                  |
+| Parallel / Throughput                             | Yes        | No           | Yes                             | -XX:+UseParallelGC                                                                                                                                        |                                                  |
+| Concurrent Mark and Sweep (CMS)                   | Yes        | Partially    | Yes                             | -XX:+UseParNewGC <br/> or as of Java 9: <br/> -XX:+UseConcMarkSweepGC <br/> and if we want to define the number of threads <br/> -XX:ParallelCMSThreads=n | Deprecated since Java 9 and removed from Java 14 |
+| G1 (Garbage First)                                | Yes        | Partially    | Yes                             | -XX:+UseG1GC                                                                                                                                              | JDK 7 (update 4)                                 |
+| Shenandoah GC                                     | Yes        | Fully        | No (upto JDK 17, may be later?) | -XX:+UseShenandoahGC                                                                                                                                      | JDK 15                                           |
+| ZGC                                               | Yes        | Fully        | No (upto JDK 17, may be later?) | -XX:+UseZGC                                                                                                                                               | JDK 15                                           |
+| C4 - Continuously Concurrent Compacting Collector | Yes        | Fully        | Yes                             | None, this is the default in Azul Zulu Prime                                                                                                              | Only in Azul Zulu Prime                          |
+
+#### Serial GC
+
+The serial collector uses a **single thread** to perform all the garbage collection work and uses **stop-the-world**,
+meaning it freezes all application threads when it runs.
+
+It's selected by default on certain small hardware and operating system configurations, or it can be explicitly enabled
+with the following argument:
+
+```
+java -XX:+UseSerialGC Application.java
+```
+
+**Pros**:
+
+- Without inter-thread communication overhead, it's relatively efficient.
+- It's suitable for client-class machines and embedded systems.
+- It's suitable for applications with small datasets.
+- Even on multiprocessor hardware, if data sets are small (up to `100 MB`), it can still be the most efficient.
+
+**Cons**:
+
+- It's not efficient for applications with large datasets.
+- It can't take advantage of multiprocessor hardware.
+
+#### Parallel/Throughput GC
+
+It's the default GC of the JVM from **Java 5** until **Java 8**, or it can be explicitly enabled as:
+
+```
+java -XX:+UseParallelGC Application.java
+```
+
+Unlike Serial Garbage Collector, it uses **multiple threads** for managing heap space, but it also freezes other
+application threads while performing GC.
+
+If we use this GC, we can specify maximum garbage collection threads and pause time, throughput, and footprint (heap
+size):
+
+- The **number of garbage collector threads** can be controlled with the command-line option:
+  `-XX:ParallelGCThreads=<N>`
+- The **maximum pause time goal** (a hint to the garbage collector that pause time of `<N> milliseconds` or less is
+  desired) is specified with the command-line option: `-XX:MaxGCPauseMillis=<N>`
+- The time spent doing garbage collection versus the time spent outside garbage collection is called the **maximum
+  throughput target** and can be specified by the command-line option: `-XX:GCTimeRatio=<N>`
+- The **maximum heap footprint** (the amount of heap memory that a program requires while running) is specified using
+  the option: `-Xmx<N>`
+
+**Pros**:
+
+- It can take advantage of multiprocessor hardware.
+- It's more efficient for larger data sets than serial GC.
+- It provides high overall **throughput**.
+- It attempts to minimize the **memory footprint**.
+
+**Cons**:
+
+- Applications incur long pause times during stop-the-world operations.
+- It doesn't scale well with heap size.
+
+#### Concurrent Mark Sweep (CMS) GC
+
+CMS is mostly concurrent collector, meaning, it performs some expensive work **concurrently** with the application.
+
+It's designed for low latency by eliminating the long pause associated with the full GC of parallel and serial
+collectors.
+
+CMS can be explicitly enabled as:
+
+```
+java -XX:+UseConcMarkSweepGC Application.java
+```
+
+The core Java team deprecated it as of **Java 9** and completely removed it in **Java 14**.
+
+**Pros**:
+
+- It's great for low latency applications as it minimizes pause time.
+- It scales relatively well with heap size.
+- It can take advantage of multiprocessor machines.
+
+**Cons**:
+
+- It's deprecated as of Java 9 and removed in Java 14.
+- It becomes relatively inefficient when data sets reach gigantic sizes or when collecting humongous heaps.
+- It requires the application to share resources with GC during concurrent phases.
+- There may be throughput issues as there's more time spent overall in GC operations.
+- Overall, it uses more CPU time due to its mostly concurrent nature.
+
+#### G1 (Garbage First)
+
+G1 (Garbage First) Garbage Collector is designed for applications running on multi-processor machines with large memory
+space. It's available from the **JDK7 Update 4** and in later releases.
+
+Unlike other collectors, the G1 collector partitions the heap into a set of **equal-sized** heap regions, each a
+contiguous range of virtual memory.
+
+When performing garbage collections, G1 shows a concurrent global marking phase (i.e. phase 1, known as **Marking**) to
+determine the liveliness of objects throughout the heap.
+
+After the mark phase is complete, G1 knows which regions are mostly empty. It collects in these areas first, which
+usually yields a significant amount of free space (i.e. phase 2, known as **Sweeping**).
+
+G1 uses multiple background GC threads to scan and clear the heap just like **CMS**. Actually, the core Java team
+designed G1 as an improvement over CMS, patching some of its weaknesses with additional strategies.
+
+In addition to the incremental and concurrent collection, it tracks previous application behavior and GC pauses to
+achieve **predictability**.
+
+It then focuses on reclaiming space in the most efficient areas first — those mostly filled with garbage. We call it
+**Garbage-First** for this reason.
+
+Since Java 9, G1 is the default collector for server-class machines.
+
+G1 works best for applications with very strict pause-time goals and a modest overall throughput, such as real-time
+applications like trading platforms or interactive graphics programs.
+
+To enable the G1 Garbage Collector, we can use the following argument:
+
+```
+java -XX:+UseG1GC Application.java
+```
+
+**Pros:**
+
+- It's very efficient with gigantic datasets.
+- It takes full advantage of multiprocessor machines.
+- It's the most efficient in achieving pause time goals.
+
+**Cons:**
+
+- It's not the best when there are strict throughput goals.
+- It requires the application to share resources with GC during concurrent collections.
+
+#### ZGC
 
