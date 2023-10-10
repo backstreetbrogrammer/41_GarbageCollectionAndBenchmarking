@@ -20,6 +20,7 @@ Tools used:
         - [Concurrent Mark Sweep (CMS) GC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#concurrent-mark-sweep-cms-gc)
         - [G1 (Garbage First)](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#g1-garbage-first)
         - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
+    - [Which Garbage Collector to use?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#types-of-garbage-collectors)
 2. Heap monitoring and analysis
 3. Using profiler for performance analysis
 4. Performance benchmarking
@@ -168,6 +169,14 @@ If any objects become **old enough,** they are copied to the **Old generation** 
 
 We can take advantage of the young generation system by focusing on local variables within methods that have a short
 lifetime, so the GC can focus on a subset of the heap that can quickly be handled.
+
+**String pool optimization**
+
+**Java 8u20** has introduced one JVM parameter for reducing the unnecessary use of memory by creating too many instances
+of the same String. This optimizes the heap memory by removing duplicate String values to a global single `char[]`
+array.
+
+We can enable this parameter by adding `-XX:+UseStringDeduplication` as a JVM parameter.
 
 ### Types of Garbage Collectors
 
@@ -318,4 +327,198 @@ java -XX:+UseG1GC Application.java
 - It requires the application to share resources with GC during concurrent collections.
 
 #### ZGC
+
+ZGC (Z Garbage Collector) is a scalable low-latency garbage collector that debuted in **Java 11** as an experimental
+option for _Linux_. **JDK 14** introduced ZGC under the _Windows_ and _macOS_ operating systems. ZGC has obtained the
+production status from **Java 15** onwards.
+
+ZGC performs all expensive work concurrently, without stopping the execution of application threads for more than
+`10 ms`, which makes it suitable for applications that require low latency.
+
+It uses load barriers with colored pointers to perform concurrent operations when the threads are running, and they're
+used to keep track of heap usage.
+
+Reference coloring (colored pointers) is the core concept of ZGC. It means that ZGC uses some bits (metadata bits) of
+reference to mark the state of the object.
+
+It also handles heaps ranging from `8MB` to `16TB` in size. Furthermore, pause times don’t increase with the heap,
+live-set, or root-set size.
+
+Similar to **G1**, **Z Garbage Collector** partitions the heap, except that heap regions can have **different** sizes.
+
+To enable the Z Garbage Collector, we can use the following argument in JDK versions **lower than 15**:
+
+```
+java -XX:+UnlockExperimentalVMOptions -XX:+UseZGC Application.java
+```
+
+**From version 15** on, we don’t need experimental mode on:
+
+```
+java -XX:+UseZGC Application.java
+```
+
+**_Use Case 1_**
+
+GCs have evolved a lot in recent decades. As a Java developer, we need to be aware that some tips for older GC
+generations are not applicable anymore.
+
+**C4**, **ZGC**, and **Shenandoah** are truly **concurrent**.
+
+The pause times with these modern GCs are tiny, often units of milliseconds or even lower.
+
+The size of the live set (objects that cannot be collected because they have references that may still be used in the
+future) still determines the duration of the GC cycles, but the application is not paused while they are running.
+
+The pause times do not scale with an increase in live set or heap size.
+
+Traditionally, there has been a conscious attempt to design applications in such a way as to avoid needing larger Java
+heaps.
+
+One thing that developers still need to be careful about is avoiding leaks in the Java heap that can lead to **high live
+sets** for GC.
+
+The duration of, and CPU consumption by, most modern GCs is proportional to the size of live set. The Java ecosystem has
+several tools that can help analyze live sets and identify problems.
+
+**_Use Case 2_**
+
+The GC has a significant impact on how your application behaves. Still, as a developer, we should also be aware that
+certain coding practices can have an impact on how Java uses memory, and some problems can also get fixed with a
+code change!
+
+One of the examples where we have seen such wins is in **statistics** and **parser applications**, where a lot of
+data is copied and only used once.
+
+Creating and using **short-lived small** objects or `ArrayLists` is not a problem.
+
+But when **large** data structures are used in a **"create to discard"** mode,the memory allocation rate can get out of
+hand, and re-use of data structures can be beneficial.
+
+An example would be single-use large buffers or arrays containing millions of objects of the same size.
+
+A generational GC that is optimized to make the difference between young and old objects works best when there are two
+**stereotypes** of data:
+
+- Transactional data: objects that are created during a transaction or event and die within seconds or milliseconds.
+- Reference data: data loaded once and referenced (read) but not modified by a transaction.
+
+On the other hand, the **"worst"** kind of memory for a GC is a **rolling buffer (FIFO)**, where data lives for minutes
+or hours. This is not a programming issue but has a **"business"** reason – for example, when a rolling transaction log,
+session buffer, or similar must be used.
+
+When an application is constantly modifying its **"old"** long-lived data at a high rate, then non-concurrent GCs sooner
+or later run into trouble and need a full GC.
+
+**_Use Case 3_**
+
+For specific projects, it is clear that the heap size is causing long pauses in the application execution caused by the
+Garbage Collector.
+
+For example, projects where a `100GB` heap is used can expect pause times of over `10 seconds` when the GC is cleaning
+up the memory.
+
+In other cases, for example, financial and gaming applications, a smaller heap of `10GB` size which stops for hundreds
+of **milliseconds** can already be a big problem.
+
+Anyhow, having a Garbage Collector that doesn't stop our application completely for an unpredictable time is essential
+for every project that expects consistent short response times; low latency in other words.
+
+**Clusters** are another example where we have seen problems caused by the GC.
+
+When one node with a big heap is considered dead because it is not responding during a GC cycle, a process is started to
+spin up a new node and redistribute the data. But suddenly, the node that is considered to be dead re-appears after the
+GC cycle, causing a chain of undesired events in the cluster.
+
+### Which Garbage Collector to use?
+
+For many applications, the choice of the collector is never an issue, as the **JVM default** usually suffices.
+
+That means the application can perform well in the presence of garbage collection with pauses of acceptable frequency
+and duration.
+
+However, this isn't the case for a large class of applications, especially those with humongous datasets, many threads,
+and high transaction rates.
+
+In IT project management, there is a famous rule: "You need to choose between speed, quality, and cost. But you can only
+have 2 out of these 3."
+
+There seems to be a consensus that the same applies in regard to running an application. We need to pick two of the
+following:
+
+- Very low latency
+- Very high throughput
+- Lowest resource usage (CPU and memory)
+
+But there is actually a fourth element we should add here: **"Good Engineering!"**
+
+**_Variables to Consider_**
+
+**Heap Size**
+
+This is the total amount of working memory allocated by the OS to the JVM. Theoretically, the larger the memory, the
+more objects can be kept before collection, leading to longer GC times.
+
+The minimum and maximum heap sizes can be set using `-Xms=<n>` and `-Xmx=<m>` command-line options.
+
+**Application Data Set Size**
+
+This is the total size of objects an application needs to keep in memory to work effectively. Since all new objects are
+loaded in the young generation space, this will definitely affect the maximum heap size and, hence, the GC time.
+
+**Number of CPUs**
+
+This is the number of cores the machine has available. This variable directly affects which algorithm we choose. Some
+are only efficient when there are multiple cores available, and the reverse is true for other algorithms.
+
+**Pause Time**
+
+The pause time is the duration during which the garbage collector stops the application to reclaim memory. This variable
+directly affects latency, so the goal is to limit the longest of these pauses.
+
+**Throughput**
+
+By this, we mean the time processes spend actually doing application work. The higher the application time vs. overhead
+time spent in doing GC work, the higher the throughput of the application.
+
+**Memory Footprint**
+
+This is the working memory used by a GC process. When a setup has limited memory or many processes, this variable may
+dictate scalability.
+
+**Promptness**
+
+This is the time between when an object becomes dead and when the memory it occupies is reclaimed. It's related to the
+heap size. In theory, the larger the heap size, the lower the promptness as it will take longer to trigger collection.
+
+**Latency**
+
+This is the responsiveness of an application. GC pauses affect this variable directly.
+
+**Java Version**
+
+As new Java versions emerge, there are usually changes in the supported GC algorithms and also the default collector. We
+recommend starting off with the default collector as well as its default arguments. Tweaking each argument has varying
+effects depending on the chosen collector.
+
+**Concurrent Garbage Collectors**
+
+When the GC is concurrent, it shares the resources with application threads running concurrently.
+
+Thus, the duration of the GC cycle can be impacted by the level of CPU load on the system or inside a container.
+
+A **Stop-The-World** GC does not face this issue since it stops all the Java threads when it runs.
+
+Thus, if the system is highly saturated, a concurrent GC can take significant time and introduce allocation pauses.
+
+To reap full benefit from concurrent GC, it is advisable to keep the CPU load average below the number of cores
+available.
+
+Of course, the eventual GC behavior will depend on a combination of factors – live set, allocation rate, and CPU load
+average.
+
+---
+
+## Chapter 02. Heap monitoring and analysis
+
 
