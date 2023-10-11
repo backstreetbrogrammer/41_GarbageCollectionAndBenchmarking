@@ -521,4 +521,29 @@ average.
 
 ## Chapter 02. Heap monitoring and analysis
 
+One of the core benefits of Java is the automated memory management with the help of the built-in Garbage Collector (or
+GC for short). The GC implicitly takes care of allocating and freeing up memory, and thus is capable of handling the
+majority of memory leak issues.
+
+While the GC effectively handles a good portion of memory, it doesn't guarantee a foolproof solution to memory leaking.
+The GC is pretty smart, but not flawless. Memory leaks can still sneak up, even in the applications of a conscientious
+developer.
+
+**Memory Leak**
+
+A Memory Leak is a situation where there are objects present in the heap that are no longer used, but the garbage
+collector is unable to remove them from memory, and therefore, they're unnecessarily maintained.
+
+A memory leak is bad because it blocks memory resources and degrades system performance over time. If not dealt with,
+the application will eventually exhaust its resources, finally terminating with a fatal `java.lang.OutOfMemoryError`.
+
+There are two different types of objects that reside in Heap memory, **referenced** and **unreferenced**.
+
+Referenced objects are those that still have active references within the application, whereas unreferenced objects
+don't have any active references.
+
+The garbage collector removes unreferenced objects periodically, but it never collects the objects that are still being
+referenced. This is where memory leaks can occur:
+
+![MemoryLeak](MemoryLeak.PNG)
 
