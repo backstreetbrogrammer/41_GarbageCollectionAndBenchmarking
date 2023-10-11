@@ -22,8 +22,8 @@ Tools used:
         - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
     - [Which Garbage Collector to use?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#which-garbage-collector-to-use)
 2. [Heap monitoring and analysis](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-02-heap-monitoring-and-analysis)
-    - [Interview Problem 1 (Bullish - cryptocurrency exchange) - How to capture heap dumps for analysis?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
-    - [Interview Problem 2 (Goldman Sachs) - What is memory leak in Java and how to identify and prevent it?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
+    - [Interview Problem 1 (Bullish - cryptocurrency exchange) - How to capture heap dumps for analysis?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#interview-problem-1-bullish---cryptocurrency-exchange---how-to-capture-heap-dumps-for-analysis)
+    - [Interview Problem 2 (Goldman Sachs) - What is memory leak in Java and how to identify and prevent it?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#interview-problem-2-goldman-sachs---what-is-memory-leak-in-java-and-how-to-identify-and-prevent-it)
 3. Thread dumps analysis
 4. Summary of most important JVM parameters
 
