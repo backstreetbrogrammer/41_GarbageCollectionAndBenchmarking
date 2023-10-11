@@ -22,9 +22,10 @@ Tools used:
         - [ZGC](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
     - [Which Garbage Collector to use?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#which-garbage-collector-to-use)
 2. [Heap monitoring and analysis](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-02-heap-monitoring-and-analysis)
-3. Using profiler for performance analysis
-4. Performance benchmarking
-5. Summary of most important JVM parameters
+    - [Interview Problem 1 (Bullish - cryptocurrency exchange) - How to capture heap dumps for analysis?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
+    - [Interview Problem 2 (Goldman Sachs) - What is memory leak in Java and how to identify and prevent it?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#zgc)
+3. Thread dumps analysis
+4. Summary of most important JVM parameters
 
 ---
 
@@ -529,7 +530,87 @@ While the GC effectively handles a good portion of memory, it doesn't guarantee 
 The GC is pretty smart, but not flawless. Memory leaks can still sneak up, even in the applications of a conscientious
 developer.
 
-**Memory Leak**
+### Interview Problem 1 (Bullish - cryptocurrency exchange) - How to capture heap dumps for analysis?
+
+A heap dump is a snapshot of all the objects that are in memory in the JVM at a certain moment. They are very useful to
+troubleshoot memory-leak problems and optimize memory usage in Java applications.
+
+Heap dumps are usually stored in binary format `hprof` files. We can open and analyze these files using tools like
+`jhat` or `JVisualVM`.
+
+For Eclipse users: [MAT](https://www.vogella.com/tutorials/EclipseMemoryAnalyzer/article.html).
+
+**_JDK Tools_**
+
+The JDK comes with several tools to capture heap dumps in different ways. All these tools are located under the `bin`
+folder inside the `JAVA_HOME` directory. Therefore, we can start them from the command line as long as this directory is
+included in the system path.
+
+**_jmap_**
+
+`jmap` is a tool to print statistics about memory in a running JVM. We can use it for local or remote processes.
+
+```
+jmap -dump:[live],format=b,file=<file-path> <pid>
+
+// example
+jmap -dump:live,format=b,file=/tmp/dump.hprof 13647
+```
+
+Arguments used:
+
+- **live**: if set, it only prints objects which have active references and discards the ones that are ready to be
+  garbage collected. This parameter is optional.
+- **format=b**: specifies that the dump file will be in binary format. By default, its binary only.
+- **file**: the file where the dump will be written to
+- **pid**: id of the Java process
+
+We can get the `pid` of a Java process by using the `jps` command.
+
+**_jcmd_**
+
+`jcmd` tool works by sending command requests to the JVM. We have to use it in the same machine where the Java process
+is running.
+
+One of its many commands is the `GC.heap_dump`. We can use it to get a heap dump just by specifying the `pid` of the
+process and the output file path:
+
+```
+jcmd <pid> GC.heap_dump <file-path>
+
+// example
+jcmd 13647 GC.heap_dump /tmp/dump.hprof
+```
+
+As with `jmap`, the dump generated is in **binary** format.
+
+**_JVisualVM_**
+
+`JVisualVM` is a tool with a graphical user interface that lets us monitor, troubleshoot, and profile Java applications.
+
+It can be dowloaded as open source from: [VisualVM](https://visualvm.github.io/)
+
+One of its many options allows us to capture a **heap dump**. If we right-click on a Java process and select the
+**"Heap Dump"** option, the tool will create a heap dump and open it in a new tab:
+
+![HeapDump](HeapDump.PNG)
+
+**_Capture a Heap Dump using JVM options_**
+
+Above JDK tools methods help to capture heap dumps **manually** at a specific time. In some cases, we want to get a heap
+dump when a `java.lang.OutOfMemoryError` occurs to help us investigate the error.
+
+For these cases, Java provides the `HeapDumpOnOutOfMemoryError` and `HeapDumpPath` command-line option, which
+generates a heap dump when a `java.lang.OutOfMemoryError` is thrown:
+
+```
+java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=<file-or-dir-path> Application.java
+```
+
+There’s no overhead when running an application with this option. Therefore, it’s highly recommended to always use
+this option, especially in production.
+
+### Interview Problem 2 (Goldman Sachs) - What is memory leak in Java and how to identify and prevent it?
 
 A Memory Leak is a situation where there are objects present in the heap that are no longer used, but the garbage
 collector is unable to remove them from memory, and therefore, they're unnecessarily maintained.
@@ -546,4 +627,53 @@ The garbage collector removes unreferenced objects periodically, but it never co
 referenced. This is where memory leaks can occur:
 
 ![MemoryLeak](MemoryLeak.PNG)
+
+**_Memory Leak through `static` fields_**
+
+In Java, `static` fields have a life that usually matches the entire lifetime of the running application (unless
+`ClassLoader` becomes eligible for garbage collection).
+
+Suppose we have a class like this:
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
+public class StaticMemoryLeakDemo {
+
+    public static List<Double> list = new ArrayList<>();
+
+    public void populateList() {
+        for (int i = 0; i < 10000000; i++) {
+            list.add(ThreadLocalRandom.current().nextDouble());
+        }
+        System.out.println("Debug Point 2");
+    }
+
+    public static void main(final String[] args) {
+        System.out.println("Debug Point 1");
+        new StaticMemoryLeakDemo().populateList();
+        System.out.println("Debug Point 3");
+    }
+}
+```
+
+If we analyze the heap memory during this program execution, then we’ll see that between **Debug points 1 and 2**, the
+heap memory increased as expected.
+
+But when we leave the `populateList()` method at the **debug point 3**, the heap memory isn't yet garbage collected.
+
+However, if we just drop the keyword `static` and make `List` as non-static, then it'll bring a drastic change to the
+memory usage as all the memory of the list is garbage collected because we don't have any reference to it.
+
+Thus, ff collections or large objects are declared as `static`, then they remain in the memory throughout the lifetime
+of the application, thus blocking vital memory that could otherwise be used elsewhere.
+
+To prevent it:
+
+- Minimize the use of `static` variables.
+- When using `singletons`, rely upon an implementation that lazily loads the object, instead of eagerly loading.
+
+**_Memory Leak through unclosed resources_** 
 
