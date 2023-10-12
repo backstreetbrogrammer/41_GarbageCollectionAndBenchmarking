@@ -24,8 +24,7 @@ Tools used:
 2. [Heap monitoring and analysis](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-02-heap-monitoring-and-analysis)
     - [Interview Problem 1 (Bullish - cryptocurrency exchange) - How to capture heap dumps for analysis?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#interview-problem-1-bullish---cryptocurrency-exchange---how-to-capture-heap-dumps-for-analysis)
     - [Interview Problem 2 (Goldman Sachs) - What is memory leak in Java and how to identify and prevent it?](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#interview-problem-2-goldman-sachs---what-is-memory-leak-in-java-and-how-to-identify-and-prevent-it)
-3. Thread dumps analysis
-4. Summary of most important JVM parameters
+3. [Summary of most important JVM parameters](https://github.com/backstreetbrogrammer/41_GarbageCollectionAndBenchmarking#chapter-03-Summary-of-most-important-jvm-parameters)
 
 ---
 
@@ -203,7 +202,7 @@ It's selected by default on certain small hardware and operating system configur
 with the following argument:
 
 ```
-java -XX:+UseSerialGC Application.java
+java -XX:+UseSerialGC Application
 ```
 
 **Pros**:
@@ -223,7 +222,7 @@ java -XX:+UseSerialGC Application.java
 It's the default GC of the JVM from **Java 5** until **Java 8**, or it can be explicitly enabled as:
 
 ```
-java -XX:+UseParallelGC Application.java
+java -XX:+UseParallelGC Application
 ```
 
 Unlike Serial Garbage Collector, it uses **multiple threads** for managing heap space, but it also freezes other
@@ -263,7 +262,7 @@ collectors.
 CMS can be explicitly enabled as:
 
 ```
-java -XX:+UseConcMarkSweepGC Application.java
+java -XX:+UseConcMarkSweepGC Application
 ```
 
 The core Java team deprecated it as of **Java 9** and completely removed it in **Java 14**.
@@ -313,7 +312,7 @@ applications like trading platforms or interactive graphics programs.
 To enable the G1 Garbage Collector, we can use the following argument:
 
 ```
-java -XX:+UseG1GC Application.java
+java -XX:+UseG1GC Application
 ```
 
 **Pros:**
@@ -350,13 +349,13 @@ Similar to **G1**, **Z Garbage Collector** partitions the heap, except that heap
 To enable the Z Garbage Collector, we can use the following argument in JDK versions **lower than 15**:
 
 ```
-java -XX:+UnlockExperimentalVMOptions -XX:+UseZGC Application.java
+java -XX:+UnlockExperimentalVMOptions -XX:+UseZGC Application
 ```
 
 **From version 15** on, we don’t need experimental mode on:
 
 ```
-java -XX:+UseZGC Application.java
+java -XX:+UseZGC Application
 ```
 
 **_Use Case 1_**
@@ -604,7 +603,7 @@ For these cases, Java provides the `HeapDumpOnOutOfMemoryError` and `HeapDumpPat
 generates a heap dump when a `java.lang.OutOfMemoryError` is thrown:
 
 ```
-java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=<file-or-dir-path> Application.java
+java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=<file-or-dir-path> Application
 ```
 
 There’s no overhead when running an application with this option. Therefore, it’s highly recommended to always use
@@ -645,7 +644,7 @@ public class StaticMemoryLeakDemo {
     public static List<Double> list = new ArrayList<>();
 
     public void populateList() {
-        for (int i = 0; i < 10000000; i++) {
+        for (int i = 0; i < 10_000_000; i++) {
             list.add(ThreadLocalRandom.current().nextDouble());
         }
         System.out.println("Debug Point 2");
@@ -675,5 +674,368 @@ To prevent it:
 - Minimize the use of `static` variables.
 - When using `singletons`, rely upon an implementation that lazily loads the object, instead of eagerly loading.
 
-**_Memory Leak through unclosed resources_** 
+**_Memory Leak through unclosed resources_**
 
+Whenever we make a new connection or open a stream like database connections, input streams, and session objects, the
+JVM allocates memory for these resources.
+
+Forgetting to close these resources can block the memory, thus keeping them out of the reach of the GC. This can even
+happen in case of an exception that prevents the program execution from reaching the statement that's handling the code
+to close these resources.
+
+In either case, the open connection left from the resources consumes memory, and if we don't deal with them, they can
+deteriorate performance, and even result in an `OutOfMemoryError`.
+
+To prevent it:
+
+- Always use `finally` block to close resources.
+- The code (even in the `finally` block) that closes the resources shouldn't have any exceptions itself.
+- When using `Java 7+`, we can make use of the `try-with-resources` block.
+
+**_Memory Leak through improper `equals()` and `hashCode()` implementations_**
+
+When defining new classes, a prevalent oversight is not writing proper overridden methods for the `equals()` and
+`hashCode()` methods.
+
+`HashSet` and `HashMap` use these methods in many operations, and if they're not overridden correctly, they can become a
+source for potential memory leak problems.
+
+Suppose we have a `Student` class as:
+
+```java
+public class Student {
+
+    private final String name;
+
+    public Student(final String name) {
+        this.name = name;
+    }
+}
+```
+
+Now we'll insert duplicate `Student` objects into a `Map` that uses this key.
+
+Remember that a `Map` can't contain duplicate keys:
+
+```java
+import org.junit.jupiter.api.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+
+public class StudentTest {
+
+    @Test
+    void testMemoryLeakWhenNoEqualsOrHashCodeMethodImplemented() {
+        final Map<Student, Integer> map = new HashMap<>();
+        for (int i = 0; i < 100; i++) {
+            map.put(new Student("John"), 1);
+        }
+        assertNotEquals(1, map.size());
+    }
+}
+```
+
+In fact, the `map` size is `100` instead of `1`!
+
+Since, we haven't defined the proper `equals()` and `hashCode()` method, the duplicate objects pile up and increase the
+memory, which is why we see more than one object in the memory.
+
+To prevent it:
+
+- As a rule of thumb, when defining new entities, always override the `equals()` and `hashCode()` methods.
+- It's not enough to just override, these methods must be overridden in an optimal way as well.
+
+**_Memory Leak through inner classes that reference outer classes_**
+
+This happens in the case of **non-static** inner classes (anonymous classes). For initialization, these inner classes
+always require an instance of the enclosing class.
+
+Every non-static inner class has, by default, an implicit reference to its containing class. If we use this inner class’
+object in our application, then even after our containing class' object goes out of scope, it won't be garbage
+collected.
+
+This can be an issue if the outer class holds the reference to lots of bulky objects and has a non-static inner class.
+When we create an object of just the inner class, the implicit reference to heavy outer class will not be eligible
+for garbage collection.
+
+To prevent it:
+
+- Migrating to the latest version of Java that uses modern Garbage Collectors such as `ZGC` that uses root references
+  to find unreachable objects. Since the references are found from the **root**, this will solve the cyclic problem,
+  like the anonymous class holding reference to the container class.
+- If the inner class doesn't need access to the containing class members, consider turning it into a `static` class.
+
+**_Memory Leak through `finalize()` method_**
+
+Use of finalizers is yet another source of potential memory leak issues. Whenever a class' `finalize()` method is
+overridden, then objects of that class aren't instantly garbage collected.
+
+Instead, the GC **queues** them for finalization, which occurs at a later point in time.
+
+Additionally, if the code written in the `finalize()` method isn't optimal, and if the finalizer queue can't keep up
+with the Java garbage collector, then sooner or later our application is destined to meet an `OutOfMemoryError`.
+
+To prevent it:
+
+- We should always avoid finalizers.
+
+**_Memory Leak through `ThreadLocal`_**
+
+(asked in Goldman Sachs interview in details)
+
+`ThreadLocal` is a construct that gives us the ability to isolate state to a particular thread, and thus allows us to
+achieve thread safety.
+
+When using this construct, each thread will hold an implicit reference to its copy of a `ThreadLocal` variable and will
+maintain its own copy, instead of sharing the resource across multiple threads, as long as the thread is alive.
+
+Despite its advantages, the use of `ThreadLocal` variables is controversial, as they're infamous for introducing memory
+leaks if not used properly.
+
+Sloppy use of **thread pools** in combination with sloppy use of **thread locals** can cause unintended object
+retention, as has been noted in many places. But placing the blame on thread locals is unwarranted.
+
+`ThreadLocals` are supposed to be garbage collected once the holding thread is no longer alive. But the problem arises
+when we use `ThreadLocals` along with modern application servers.
+
+Modern application servers use a pool of threads to process requests, instead of creating new ones (for example, the
+`ExecutorService`). Moreover, they also use a separate `Classloader`.
+
+Since **Thread Pools** in application servers work on the concept of thread reuse, they're never garbage collected;
+instead, they're reused to serve another request.
+
+If any class creates a `ThreadLocal` variable, but doesn't explicitly remove it, then a copy of that object will remain
+with the worker `Thread` even after the application is stopped, thus preventing the object from being garbage collected.
+
+To prevent it:
+
+- It's good practice to **clean-up** `ThreadLocals` when we're no longer using them. `ThreadLocals` provide the
+  `remove()` method, which removes the current thread's value for this variable.
+- Don't use `ThreadLocal.set(null)` to clear the value. It doesn't actually clear the value, but will instead look up
+  the `Map` associated with the current thread and set the key-value pair as the current thread and `null`,
+  respectively.
+- It's best to consider `ThreadLocal` a resource that we need to close in a `finally()` block, even in the case of an
+  exception:
+
+```
+try {
+    threadLocal.set(threadId);
+    //... further processing
+}
+finally {
+    threadLocal.remove();
+}
+```
+
+OR, another option is to create our custom `ThreadPoolExecutor` like this:
+
+```
+public class ThreadLocalAwareThreadPool extends ThreadPoolExecutor {
+
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        // Call remove on each ThreadLocal
+    }
+}
+```
+
+`ThreadPoolExecutor` class provides a custom hook implementation for the `beforeExecute()` and `afterExecute()` methods:
+
+- The thread pool will call the `beforeExecute()` method before running anything using the borrowed thread.
+- The thread pool will call the `afterExecute()` method after executing our logic and returning the thread to the pool.
+
+**_Other ways to deal with memory leaks_**
+
+**Enable Profiling**
+
+Java profilers are tools that monitor and diagnose the memory leaks through the application. They analyze what's going
+on internally in our application, like how we allocate memory.
+
+Using profilers, we can compare different approaches and find areas where we can optimally use our resources.
+
+Most popular Java profilers available:
+
+- [JProfiler](https://www.ej-technologies.com/products/jprofiler/overview.html)
+- [YourKit](https://www.yourkit.com/java/profiler/)
+- [VisualVM](https://visualvm.github.io/)
+- [NetBeans Profiler](https://netbeans.apache.org/kb/docs/java/profiler-intro.html)
+- [IntelliJ Profiler](https://lp.jetbrains.com/intellij-idea-profiler/)
+- [Java Mission Control](https://www.oracle.com/java/technologies/jdk-mission-control.html)
+- [New Relic](https://newrelic.com/)
+- [Prefix](https://stackify.com/prefix/)
+
+**Verbose Garbage Collection**
+
+By enabling verbose garbage collection, we can track the detailed trace of the GC.
+
+To enable this, we need to add the following to our JVM configuration:
+
+```
+java -verbose:gc Application
+```
+
+By adding this parameter, we can see the details of what’s happening inside the GC:
+
+![verboseGC](verboseGC.PNG)
+
+**Use Reference Objects**
+
+We can resort to reference objects in Java that come built-in with the `java.lang.ref` package to deal with memory
+leaks. Using the `java.lang.ref` package, instead of directly referencing objects, we use special references to objects
+that allow them to be easily garbage collected.
+
+Reference queues make us aware of the actions the Garbage Collector performs.
+
+A soft reference object (or a softly reachable object) can be cleared by the Garbage Collector in response to a memory
+demand. A softly reachable object has no strong references pointing to it.
+
+When a Garbage Collector gets called, it starts iterating over all elements in the heap. GC stores reference type
+objects in a special queue.
+
+After all objects in the heap get checked, GC determines which instances should be removed by removing objects from that
+queue mentioned above.
+
+These rules vary from one JVM implementation to another, but the documentation states that all soft references to
+softly reachable objects are guaranteed to be cleared before a JVM throws an `OutOfMemoryError`.
+
+---
+
+## Chapter 03. Summary of most important JVM parameters
+
+We'll explore the most well-known options that we can use to configure the Java Virtual Machine.
+
+**_Explicit Heap Memory – `Xms` and `Xmx` Options_**
+
+The most common performance-related practice is to initialize the heap memory as per the application requirements.
+
+That's why we should specify minimal and maximal heap size. We can use the below parameters to achieve this:
+
+```
+-Xms<heap size>[unit] 
+-Xmx<heap size>[unit]
+```
+
+Here, `unit` denotes the unit in which we'll initialize the memory (indicated by heap size). We can mark units as
+`g` for `GB`, `m` for `MB`, and `k` for `KB`.
+
+For example, if we want to assign minimum 2 GB and maximum 5 GB to JVM, we need to write:
+
+```
+java -Xms2G -Xmx5G Application
+```
+
+Starting with **Java 8**, the size of `Metaspace` isn't defined. Once it reaches the global limit, JVM automatically
+increases it. However, to overcome any unnecessary instability, we can set `Metaspace` size with:
+
+```
+-XX:MaxMetaspaceSize=<metaspace size>[unit]
+```
+
+As per the **Oracle guidelines**, after total available memory, the second most influential factor is the proportion of
+the heap reserved for the **Young Generation**. By default, the **minimum** size of the YG is `1310 MB`, and **maximum**
+size is `unlimited`.
+
+We can assign them explicitly:
+
+```
+-XX:NewSize=<young size>[unit] 
+-XX:MaxNewSize=<young size>[unit]
+```
+
+**Garbage Collection Algorithm**
+
+For better stability of the application, choosing the right Garbage Collection algorithm is critical.
+
+```
+-XX:+UseSerialGC
+-XX:+UseParallelGC
+-XX:+USeParNewGC
+-XX:+UseConcMarkSweepGC
+-XX:+UseG1GC
+-XX:+UseShenandoahGC                                                                                                                                      | JDK 15                                           |
+-XX:+UseZGC
+```
+
+**Garbage Collection Logging**
+
+To strictly monitor the application health, we should always check the JVM’s Garbage Collection performance. The easiest
+way to do this is to log the GC activity in human-readable format.
+
+```
+-verbose:gc
+-XX:+UseGCLogFileRotation 
+-XX:NumberOfGCLogFiles=< number of log files > 
+-XX:GCLogFileSize=< file size >[ unit ]
+-Xloggc:/path/to/gc.log
+-XX:+PrintGCTimeStamps
+-XX:+PrintGCDateStamps
+```
+
+- `UseGCLogFileRotation` specifies the log file rolling policy, much like `log4j`, `s4lj`, etc.
+- `NumberOfGCLogFiles` denotes the max number of log files we can write for a single application life cycle.
+- `GCLogFileSize` specifies the max size of the file.
+- `loggc` denotes its location.
+- `PrintGCTimeStamps` and `PrintGCDateStamps` can be used to print date-wise timestamps in the GC log.
+
+For example, if we want to assign a maximum of `10` GC log files, each having a maximum size of `30 MB`, and we want to
+store them in the `/home/application/log/` location, we can use the below syntax:
+
+```
+-XX:+UseGCLogFileRotation  
+-XX:NumberOfGCLogFiles=10
+-XX:GCLogFileSize=30M 
+-Xloggc:/home/application/log/gc.log
+```
+
+However, the problem is that one additional daemon thread is always used for monitoring system time in the background.
+This behavior may create some performance bottleneck, which is why it's better to not play with this parameter in
+production.
+
+**Handling OOM**
+
+It’s very common for a large application to face an **out of memory** error, which in turn results in an application
+crash. It's a very critical scenario, and tough to replicate to troubleshoot the issue.
+
+That's why JVM comes with some parameters to dump heap memory into a physical file that we can use later to find leaks:
+
+```
+-XX:+HeapDumpOnOutOfMemoryError 
+-XX:HeapDumpPath=./java_pid<pid>.hprof
+-XX:OnOutOfMemoryError="< cmd args >;< cmd args >" 
+-XX:+UseGCOverheadLimit
+```
+
+- `HeapDumpOnOutOfMemoryError` instructs the JVM to dump heap into a physical file in case of `OutOfMemoryError`.
+- `HeapDumpPath` denotes the path where the file will be written. Any filename can be given; however, if JVM finds
+  a `<pid>` tag in the name, the process id of the current process causing the out of memory error will be appended to
+  the file name with `.hprof` format.
+- `OnOutOfMemoryError` is used to issue emergency commands that will be executed in case of an out of memory error. We
+  should use proper commands in the space of `cmd` args. For example, if we want to restart the server as soon as an out
+  of memory occurs, we can set the parameter: `-XX:OnOutOfMemoryError="shutdown -r"`
+- `UseGCOverheadLimit` is a policy that limits the proportion of the VM's time that's spent in GC before an out of
+  memory error is thrown.
+
+**Other JVM arguments**
+
+- `-server`: enables **"Server Hotspot VM."** We use this parameter by default in `64-bit JVM`.
+- `-XX:+UseStringDeduplication`: Java **8u20** has introduced this JVM parameter for reducing the unnecessary use of
+  memory by creating too many instances of the same `String`. This optimizes the heap memory by reducing duplicate
+  `String` values to a single global `char[]` array.
+- `-XX:+UseLWPSynchronization`: sets a LWP (Light Weight Process) based synchronization policy instead of thread-based
+  synchronization.
+- `-XX:LargePageSizeInBytes`: sets the large page size used for the Java heap. It takes the argument in `GB/MB/KB`. With
+  larger page sizes, we can make better use of virtual memory hardware resources; however, this may cause larger space
+  sizes for the `PermGen`, which in turn can force us to reduce the size of the Java heap space.
+- `-XX:MaxHeapFreeRatio`: sets the maximum percentage of heap free after GC to avoid shrinking
+- `-XX:MinHeapFreeRatio`: sets the minimum percentage of heap free after GC to avoid expansion. To monitor the heap
+  usage, we can use `VisualVM` shipped with JDK.
+- `-XX:SurvivorRatio`: Ratio of `eden/survivor` space size. For example, `-XX:SurvivorRatio=6` sets the ratio between
+  each survivor space and eden space to be `1:6`.
+- `-XX:+UseLargePages`: use large page memory if the system supports it. Please note that `OpenJDK 7` tends to crash if
+  using this JVM parameter.
+- `-XX:+UseStringCache`: enables caching of commonly allocated strings available in the **String pool**
+- `-XX:+UseCompressedStrings`: use a `byte[]` type for `String` objects which can be represented in pure ASCII format
+- `-XX:+OptimizeStringConcat`: it optimizes `String` concatenation operations where possible

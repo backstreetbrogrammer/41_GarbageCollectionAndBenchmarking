@@ -9,7 +9,7 @@ public class StaticMemoryLeakDemo {
     public static List<Double> list = new ArrayList<>();
 
     public void populateList() {
-        for (int i = 0; i < 10000000; i++) {
+        for (int i = 0; i < 10_000_000; i++) {
             list.add(ThreadLocalRandom.current().nextDouble());
         }
         System.out.println("Debug Point 2");
