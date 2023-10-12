@@ -1,6 +1,6 @@
-# Garbage Collection and Benchmarking
+# Garbage Collection and Memory Analysis
 
-> This is a Java course to understand garbage collection, JVM tuning techniques and performance benchmarking.
+> This is a Java course to understand garbage collection, JVM tuning techniques and performance analysis.
 
 Tools used:
 
